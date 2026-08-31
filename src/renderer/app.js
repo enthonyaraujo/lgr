@@ -1,0 +1,473 @@
+/**
+ * LGR Studio - Renderer Application Logic
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // State
+  let currentMode = 'expr';
+  let currentImageData = null;
+  let currentSVGData = null;
+  let presetsData = [];
+
+  // Zoom / Pan State
+  let zoomLevel = 1.0;
+  let panX = 0;
+  let panY = 0;
+  let isPanning = false;
+  let startX = 0;
+  let startY = 0;
+
+  // DOM Elements
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const formPanels = document.querySelectorAll('.form-panel');
+  const viewTabs = document.querySelectorAll('.view-tab');
+  const viewPanels = document.querySelectorAll('.view-panel');
+  
+  const inputExpr = document.getElementById('input-expr');
+  const inputNum = document.getElementById('input-num');
+  const inputDen = document.getElementById('input-den');
+  const inputK = document.getElementById('input-k');
+  const inputZeros = document.getElementById('input-zeros');
+  const inputPoles = document.getElementById('input-poles');
+  const selectPreset = document.getElementById('select-preset');
+  const presetDescEl = document.getElementById('preset-description');
+  const inputTitle = document.getElementById('input-title');
+  const btnCalculate = document.getElementById('btn-calculate');
+
+  const plotViewport = document.getElementById('plot-viewport');
+  const plotImg = document.getElementById('plot-image');
+  const plotLoading = document.getElementById('plot-loading');
+
+  const latexExpanded = document.getElementById('latex-expanded');
+  const latexFactored = document.getElementById('latex-factored');
+
+  const badgePoles = document.getElementById('badge-poles');
+  const badgeZeros = document.getElementById('badge-zeros');
+  const badgeBranches = document.getElementById('badge-branches');
+  const badgeCentroid = document.getElementById('badge-centroid');
+
+  const toastEl = document.getElementById('toast');
+
+  // =========================================================================
+  // TEMA (DARK / LIGHT)
+  // =========================================================================
+  function initTheme() {
+    const savedTheme = localStorage.getItem('lgr-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('lgr-theme', next);
+    updateThemeIcon(next);
+  }
+
+  function updateThemeIcon(theme) {
+    const icon = themeToggleBtn.querySelector('.theme-icon');
+    icon.textContent = theme === 'dark' ? '🌙' : '☀️';
+  }
+
+  themeToggleBtn.addEventListener('click', toggleTheme);
+  initTheme();
+
+  // =========================================================================
+  // NAVEGAÇÃO POR ABAS (MODO DE ENTRADA & VIEWS)
+  // =========================================================================
+  modeTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      modeTabs.forEach((t) => t.classList.remove('active'));
+      formPanels.forEach((p) => p.classList.remove('active'));
+
+      tab.classList.add('active');
+      currentMode = tab.dataset.mode;
+      const targetPanel = document.getElementById(`form-${currentMode}`);
+      if (targetPanel) targetPanel.classList.add('active');
+    });
+  });
+
+  viewTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      viewTabs.forEach((t) => t.classList.remove('active'));
+      viewPanels.forEach((p) => p.classList.remove('active'));
+
+      tab.classList.add('active');
+      const targetView = document.getElementById(`view-${tab.dataset.view}`);
+      if (targetView) targetView.classList.add('active');
+    });
+  });
+
+  // Chips de Exemplos Rápidos
+  document.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      inputExpr.value = chip.dataset.example;
+      // Muda para aba de expressão se não estiver
+      document.querySelector('.mode-tab[data-mode="expr"]').click();
+      calculate();
+    });
+  });
+
+  // =========================================================================
+  // CARREGAR PRESETS
+  // =========================================================================
+  async function loadPresets() {
+    try {
+      const res = await window.api.getPresets();
+      if (res.success && res.presets) {
+        presetsData = res.presets;
+        selectPreset.innerHTML = '';
+        presetsData.forEach((p) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.title;
+          selectPreset.appendChild(opt);
+        });
+
+        updatePresetDescription();
+      }
+    } catch (err) {
+      console.error('Erro ao carregar presets:', err);
+    }
+  }
+
+  function updatePresetDescription() {
+    const selectedId = selectPreset.value;
+    const preset = presetsData.find((p) => p.id === selectedId);
+    if (preset) {
+      presetDescEl.innerHTML = `<strong>${preset.title}:</strong><br>${preset.desc}`;
+    }
+  }
+
+  selectPreset.addEventListener('change', () => {
+    updatePresetDescription();
+    calculate();
+  });
+
+  // =========================================================================
+  // CÁLCULO E PLOTAGEM DO LGR
+  // =========================================================================
+  function getPayload() {
+    const title = inputTitle.value.trim() || 'Lugar Geométrico das Raízes';
+    
+    if (currentMode === 'expr') {
+      return {
+        mode: 'expr',
+        expr: inputExpr.value.trim(),
+        title,
+      };
+    } else if (currentMode === 'coeffs') {
+      return {
+        mode: 'coeffs',
+        num: inputNum.value.trim(),
+        den: inputDen.value.trim(),
+        title,
+      };
+    } else if (currentMode === 'zpk') {
+      return {
+        mode: 'zpk',
+        k: parseFloat(inputK.value) || 1.0,
+        zeros: inputZeros.value.trim(),
+        poles: inputPoles.value.trim(),
+        title,
+      };
+    } else if (currentMode === 'presets') {
+      return {
+        mode: 'preset',
+        preset_key: selectPreset.value,
+        title,
+      };
+    }
+    return { mode: 'expr', expr: inputExpr.value.trim(), title };
+  }
+
+  async function calculate() {
+    showLoading(true);
+
+    try {
+      const payload = getPayload();
+      const res = await window.api.calculateLGR(payload);
+
+      if (!res.success) {
+        showToast(`❌ Erro: ${res.error}`, 4000);
+        showLoading(false);
+        return;
+      }
+
+      // 1. Atualizar Imagem e Vetorial
+      currentImageData = res.image;
+      currentSVGData = res.svg;
+      plotImg.src = res.image;
+      resetZoom();
+
+      // 2. Renderizar Fórmulas LaTeX via KaTeX
+      renderMath(latexExpanded, res.latex_exp);
+      renderMath(latexFactored, res.latex_fac);
+
+      // 3. Atualizar Badges de Resumo
+      const det = res.detalhes;
+      badgePoles.innerHTML = `Polos: <b>${det.P}</b>`;
+      badgeZeros.innerHTML = `Zeros: <b>${det.Z}</b>`;
+      badgeBranches.innerHTML = `Ramos: <b>${det.ramos}</b>`;
+      badgeCentroid.innerHTML = det.centroide !== null 
+        ? `Centroide $\\sigma_a$: <b>${det.centroide.toFixed(2)}</b>` 
+        : `Centroide: <b>N/A</b>`;
+
+      // 4. Preencher o Memorial de Cálculo dos 7 Passos
+      populateMemorialSteps(det);
+
+      showToast('✅ LGR calculado e traçado com sucesso!');
+
+    } catch (err) {
+      showToast(`❌ Erro inesperado: ${err.message}`, 4000);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function renderMath(element, texString) {
+    if (!element || !texString) return;
+    try {
+      if (window.katex) {
+        window.katex.render(texString, element, {
+          throwOnError: false,
+          displayMode: false,
+        });
+      } else {
+        element.textContent = texString;
+      }
+    } catch (e) {
+      element.textContent = texString;
+    }
+  }
+
+  // =========================================================================
+  // PREENCHIMENTO DO MEMORIAL DE CÁLCULO DOS 7 PASSOS
+  // =========================================================================
+  function populateMemorialSteps(det) {
+    // Passo 1, 2 e 3
+    const el1 = document.getElementById('step-content-1');
+    const polosStr = det.polos.map((p) => p.str).join(', ');
+    const zerosStr = det.Z > 0 ? det.zeros.map((z) => z.str).join(', ') : 'Nenhum zero finito';
+
+    el1.innerHTML = `
+      <div class="step-item-box">
+        <strong>Número de Polos ($P$):</strong> ${det.P} &nbsp;|&nbsp; <strong>Número de Zeros ($Z$):</strong> ${det.Z}
+      </div>
+      <p>• <strong>Polos de Malha Aberta ($K=0$):</strong> <code>${polosStr}</code></p>
+      <p>• <strong>Zeros de Malha Aberta ($K\\to\\infty$):</strong> <code>${zerosStr}</code></p>
+      <p>• <strong>Total de Ramos do LGR ($n = \\max(P, Z)$):</strong> <code>${det.ramos}</code></p>
+      <p>• <strong>Simetria:</strong> O LGR é perfeitamente simétrico em relação ao Eixo Real ($\\sigma$).</p>
+    `;
+
+    // Passo 4: Assíntotas e Centroide
+    const el4 = document.getElementById('step-content-4');
+    if (det.P > det.Z) {
+      const numAssintotas = det.P - det.Z;
+      const angulosTexto = det.angulos_assintotas
+        .map((a) => `<code>k=${a.k}: ${a.graus.toFixed(1)}°</code>`)
+        .join(', ');
+
+      el4.innerHTML = `
+        <div class="step-item-box info">
+          <strong>Ramos que tendem ao infinito ($P - Z$):</strong> ${numAssintotas} ramo(s)
+        </div>
+        <p>• <strong>Centroide das Assíntotas ($\\sigma_a$):</strong> <code>${det.centroide.toFixed(3)}</code></p>
+        <p>• <strong>Ângulos das Assíntotas ($\\theta_k = \\frac{(2k+1)180^\\circ}{P-Z}$):</strong> ${angulosTexto}</p>
+      `;
+    } else {
+      el4.innerHTML = `
+        <div class="step-item-box">
+          Como $P \\le Z$, todos os ramos terminam nos zeros finitos. Não há assíntotas direcionadas ao infinito.
+        </div>
+      `;
+    }
+
+    // Passo 5: Break-in / Breakaway
+    const el5 = document.getElementById('step-content-5');
+    if (det.break_points && det.break_points.length > 0) {
+      const breakItems = det.break_points.map(
+        (bp) => `<div class="step-item-box success">📍 Ponto no Eixo Real: <b>s = ${bp.s.toFixed(3)}</b> &nbsp;|&nbsp; Ganho Crítico: <b>K = ${bp.K.toFixed(2)}</b></div>`
+      ).join('');
+      el5.innerHTML = `
+        <p>Pontos onde $\\frac{dK}{ds} = 0 \\iff N'(s)D(s) - N(s)D'(s) = 0$:</p>
+        ${breakItems}
+      `;
+    } else {
+      el5.innerHTML = `
+        <div class="step-item-box">
+          Nenhum ponto de partida ou retorno no eixo real com ganho $K > 0$ válido.
+        </div>
+      `;
+    }
+
+    // Passo 6: Cruzamento do Eixo jw
+    const el6 = document.getElementById('step-content-6');
+    if (det.jw_cruzamentos && det.jw_cruzamentos.length > 0) {
+      const jwItems = det.jw_cruzamentos.map(
+        (jw) => `<div class="step-item-box warning">⚡ Cruzamento detectado em: <b>s = ± j${Math.abs(jw.w).toFixed(2)}</b> &nbsp;|&nbsp; Ganho Limite de Estabilidade: <b>K_crit = ${jw.K.toFixed(2)}</b></div>`
+      ).join('');
+      el6.innerHTML = `
+        <p>Cruzamentos com o eixo imaginário ($j\\omega$):</p>
+        ${jwItems}
+      `;
+    } else {
+      el6.innerHTML = `
+        <div class="step-item-box">
+          Nenhum cruzamento com o eixo $j\\omega$ detectado na faixa de ganho analisada (o sistema permanece no semiplano atual).
+        </div>
+      `;
+    }
+
+    // Passo 7: Ângulos de Partida e Chegada
+    const el7 = document.getElementById('step-content-7');
+    if (det.angulos_partida && det.angulos_partida.length > 0) {
+      const partidaItems = det.angulos_partida.map(
+        (ap) => `<div class="step-item-box info">📐 Para o polo complexo <b>p = ${ap.polo_str}</b>: Ângulo de partida <b>\\theta_d = ${ap.angulo.toFixed(1)}°</b></div>`
+      ).join('');
+      el7.innerHTML = `
+        <p>Condição angular: $\\theta_d = 180^\\circ + \\sum \\angle(p - z) - \\sum \\angle(p - p_{outros})$:</p>
+        ${partidaItems}
+      `;
+    } else {
+      el7.innerHTML = `
+        <div class="step-item-box">
+          Não há polos complexos conjugados nesta função de transferência (todos os polos são reais).
+        </div>
+      `;
+    }
+  }
+
+  // =========================================================================
+  // ZOOM E PAN INTERATIVO NA IMAGEM
+  // =========================================================================
+  function updateImageTransform() {
+    plotImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+  }
+
+  function resetZoom() {
+    zoomLevel = 1.0;
+    panX = 0;
+    panY = 0;
+    updateImageTransform();
+  }
+
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    zoomLevel = Math.min(zoomLevel * 1.25, 5.0);
+    updateImageTransform();
+  });
+
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    zoomLevel = Math.max(zoomLevel / 1.25, 0.5);
+    updateImageTransform();
+  });
+
+  document.getElementById('btn-zoom-reset').addEventListener('click', resetZoom);
+
+  plotViewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.4), 6.0);
+    updateImageTransform();
+  });
+
+  plotViewport.addEventListener('mousedown', (e) => {
+    isPanning = true;
+    startX = e.clientX - panX;
+    startY = e.clientY - panY;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = e.clientX - startX;
+    panY = e.clientY - startY;
+    updateImageTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+  });
+
+  // =========================================================================
+  // EXPORTAÇÃO E DOWNLOAD
+  // =========================================================================
+  document.getElementById('btn-download-png').addEventListener('click', async () => {
+    if (!currentImageData) return;
+    try {
+      const res = await window.api.saveImage({
+        base64: currentImageData,
+        defaultName: 'lugar_geometrico_das_raizes.png',
+      });
+      if (res.success) {
+        showToast('💾 Imagem PNG salva com sucesso!');
+      }
+    } catch (err) {
+      showToast(`Erro ao salvar: ${err.message}`, 3500);
+    }
+  });
+
+  document.getElementById('btn-download-svg').addEventListener('click', async () => {
+    if (!currentSVGData) return;
+    try {
+      const res = await window.api.saveSVG({
+        svg: currentSVGData,
+        defaultName: 'lugar_geometrico_das_raizes.svg',
+      });
+      if (res.success) {
+        showToast('📐 Gráfico Vetorial SVG salvo com sucesso!');
+      }
+    } catch (err) {
+      showToast(`Erro ao salvar SVG: ${err.message}`, 3500);
+    }
+  });
+
+  document.getElementById('btn-copy-img').addEventListener('click', async () => {
+    if (!currentImageData) return;
+    try {
+      const res = await window.api.copyImageToClipboard(currentImageData);
+      if (res.success) {
+        showToast('📋 Gráfico copiado para a Área de Transferência!');
+      }
+    } catch (err) {
+      showToast(`Erro ao copiar: ${err.message}`, 3500);
+    }
+  });
+
+  // =========================================================================
+  // HELPERS DE UI
+  // =========================================================================
+  function showLoading(show) {
+    if (show) {
+      plotLoading.classList.add('active');
+      btnCalculate.disabled = true;
+    } else {
+      plotLoading.classList.remove('active');
+      btnCalculate.disabled = false;
+    }
+  }
+
+  function showToast(msg, duration = 2800) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('active');
+    setTimeout(() => {
+      toastEl.classList.remove('active');
+    }, duration);
+  }
+
+  // Atalho de Teclado: Ctrl+Enter / Cmd+Enter
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      calculate();
+    }
+  });
+
+  btnCalculate.addEventListener('click', calculate);
+
+  // Inicialização
+  loadPresets().then(() => {
+    calculate();
+  });
+});

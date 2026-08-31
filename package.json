@@ -1,0 +1,28 @@
+{
+  "name": "lgr-studio",
+  "version": "1.0.0",
+  "description": "LGR Studio - Interface moderna e interativa em Electron para o Lugar Geométrico das Raízes (7 passos clássicos)",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --no-sandbox",
+    "web": "streamlit run app.py",
+    "gui": "python3 gui.py",
+    "test": "node --check src/main/main.js && node --check src/preload/preload.js"
+  },
+  "keywords": [
+    "root-locus",
+    "lgr",
+    "control-systems",
+    "electron",
+    "python"
+  ],
+  "author": "Enthony Araujo",
+  "license": "MIT",
+  "dependencies": {
+    "katex": "^0.16.21"
+  },
+  "devDependencies": {
+    "electron": "^40.8.0"
+  }
+}
