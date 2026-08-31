@@ -8214,7 +8214,7 @@ defineFunction({
       throw new src_ParseError("\\@char has non-numeric argument " + number);
       // If we drop IE support, the following code could be replaced with
       // text = String.fromCodePoint(code)
-    } else if (code < 0 || code >= 0x10ffff) {
+    } else if (code < 0 || code > 0x10ffff) {
       throw new src_ParseError("\\@char with invalid code point " + number);
     } else if (code <= 0xffff) {
       text = String.fromCharCode(code);
@@ -17590,7 +17590,7 @@ const renderToHTMLTree = function (expression, options) {
     return renderError(error, expression, settings);
   }
 };
-const version = "0.18.4";
+const version = "0.18.5";
 const __domTree = {
   Span: Span,
   Anchor: Anchor,

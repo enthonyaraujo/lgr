@@ -20,9 +20,9 @@
   "author": "Enthony Araujo",
   "license": "MIT",
   "dependencies": {
-    "katex": "^0.16.21"
+    "katex": "0.18.5"
   },
   "devDependencies": {
-    "electron": "^40.8.0"
+    "electron": "44.1.0"
   }
 }
