@@ -56,6 +56,97 @@ PRESETS = {
 }
 
 
+_SUPERSCRIPT_DIGITS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
+_SCIENTIFIC_NUMBER = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def normalize_tf_expression(expr_str: str) -> str:
+    """Normaliza variações comuns de escrita sem mudar a expressão matemática."""
+    expr = (expr_str or "").strip()
+    if not expr:
+        raise ValueError("A expressão não pode estar vazia.")
+
+    # Permite colar expressões como "G(s) = ..." ou "G(s)H(s) = ...".
+    expr = re.sub(
+        r"^\s*(?:(?:G|H|L)\s*\(\s*s\s*\)\s*)+(?:=|:)\s*",
+        "",
+        expr,
+        flags=re.IGNORECASE,
+    )
+    expr = (
+        expr.replace("−", "-")
+        .replace("–", "-")
+        .replace("×", "*")
+        .replace("·", "*")
+        .replace("÷", "/")
+        .replace("[", "(")
+        .replace("]", ")")
+    )
+
+    def replace_superscript(match):
+        exponent = match.group(0).translate(_SUPERSCRIPT_DIGITS)
+        return f"^({exponent})"
+
+    expr = re.sub(r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+", replace_superscript, expr)
+    if not expr.strip():
+        raise ValueError("Informe a expressão após G(s) =.")
+    return expr
+
+
+def _parse_polynomial_expression(expr_str: str, field_name: str = "expressão"):
+    """Interpreta somente polinômios reais em ``s`` com uma gramática restrita."""
+    normalized = normalize_tf_expression(expr_str)
+    remainder = _SCIENTIFIC_NUMBER.sub("", normalized)
+    if not re.fullmatch(r"[sS+\-*/^().\s]*", remainder):
+        raise ValueError(
+            f"A {field_name} contém símbolos não suportados. Use números, s, "
+            "parênteses e os operadores +, -, *, / ou ^."
+        )
+    if "//" in normalized:
+        raise ValueError("Use / para divisão; o operador // não é suportado.")
+
+    s = sp.Symbol("s")
+    transformations = standard_transformations + (
+        implicit_multiplication_application,
+        convert_xor,
+    )
+    safe_globals = {
+        "__builtins__": {},
+        "Integer": sp.Integer,
+        "Float": sp.Float,
+        "Rational": sp.Rational,
+    }
+    try:
+        return parse_expr(
+            normalized,
+            local_dict={"s": s, "S": s},
+            global_dict=safe_globals,
+            transformations=transformations,
+        )
+    except Exception as exc:
+        raise ValueError(f"Não foi possível interpretar a {field_name}: {exc}") from exc
+
+
+def _coefficients_and_latex(numer, denom):
+    s = sp.Symbol("s")
+    numer = sp.expand(numer)
+    denom = sp.expand(denom)
+    if sp.simplify(denom) == 0:
+        raise ValueError("O denominador não pode ser zero.")
+
+    try:
+        poly_num = sp.Poly(numer, s)
+        poly_den = sp.Poly(denom, s)
+    except sp.PolynomialError as exc:
+        raise ValueError("A função deve ser uma razão de polinômios em s.") from exc
+
+    num_coeffs = [float(c) for c in poly_num.all_coeffs()]
+    den_coeffs = [float(c) for c in poly_den.all_coeffs()]
+    latex_expanded = rf"G(s) = \frac{{{sp.latex(poly_num.as_expr())}}}{{{sp.latex(poly_den.as_expr())}}}"
+    latex_factored = rf"G(s) = \frac{{{sp.latex(sp.factor(numer))}}}{{{sp.latex(sp.factor(denom))}}}"
+    return num_coeffs, den_coeffs, latex_expanded, latex_factored
+
+
 def parse_tf_expression(expr_str: str):
     """
     Interpreta uma expressão algébrica simbólica de Função de Transferência
@@ -63,55 +154,28 @@ def parse_tf_expression(expr_str: str):
       - '(s + 2) / (s * (s + 1) * (s + 4))'
       - '10*(s+1) / (s^3 + 2s^2 + 2s)'
       - '1 / (s(s+1)(s+2))'
-      - 's + 2 / s^2 + 3s + 2'
+      - 'G(s) = (s + 2) / (s³ + 5s² + 4s)'
     Retorna (num_coeffs, den_coeffs, latex_expanded, latex_factored)
     """
-    expr_str = expr_str.strip()
-    if not expr_str:
-        raise ValueError("A expressão não pode estar vazia.")
-
-    s = sp.Symbol("s")
-    transformations = standard_transformations + (
-        implicit_multiplication_application,
-        convert_xor,
-    )
-
-    # Suporte a sintaxe com barra de divisão principal
-    try:
-        expr = parse_expr(
-            expr_str, local_dict={"s": s}, transformations=transformations
-        )
-    except Exception as e:
-        raise ValueError(f"Erro ao interpretar expressão '{expr_str}': {e}")
-
+    expr = _parse_polynomial_expression(expr_str)
     frac = sp.together(expr)
     numer, denom = sp.fraction(frac)
+    return _coefficients_and_latex(numer, denom)
 
-    poly_num = sp.Poly(numer, s)
-    poly_den = sp.Poly(denom, s)
 
-    if poly_den == 0:
-        raise ValueError("O denominador não pode ser zero.")
+def parse_tf_parts(numerator_str: str, denominator_str: str):
+    """Interpreta numerador e denominador escritos como polinômios separados."""
+    numerator = _parse_polynomial_expression(numerator_str, "numerador")
+    denominator = _parse_polynomial_expression(denominator_str, "denominador")
+    return _coefficients_and_latex(numerator, denominator)
 
-    num_coeffs = [float(c) for c in poly_num.all_coeffs()]
-    den_coeffs = [float(c) for c in poly_den.all_coeffs()]
 
-    latex_expanded = (
-        r"G(s) = \frac{"
-        + sp.latex(poly_num.as_expr())
-        + "}{"
-        + sp.latex(poly_den.as_expr())
-        + "}"
-    )
-    latex_factored = (
-        r"G(s) = \frac{"
-        + sp.latex(sp.factor(numer))
-        + "}{"
-        + sp.latex(sp.factor(denom))
-        + "}"
-    )
-
-    return num_coeffs, den_coeffs, latex_expanded, latex_factored
+def format_transfer_function(num, den):
+    """Gera as formas LaTeX expandida e fatorada a partir de coeficientes."""
+    s = sp.Symbol("s")
+    numerator = sp.Poly.from_list(num, gens=s).as_expr()
+    denominator = sp.Poly.from_list(den, gens=s).as_expr()
+    return _coefficients_and_latex(numerator, denominator)
 
 
 def parse_coeffs_str(coeffs_str: str):

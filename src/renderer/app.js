@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentImageData = null;
   let currentSVGData = null;
   let presetsData = [];
+  let previewTimer = null;
+  let previewRequestId = 0;
 
   // Zoom / Pan State
   let zoomLevel = 1.0;
@@ -25,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewPanels = document.querySelectorAll('.view-panel');
   
   const inputExpr = document.getElementById('input-expr');
+  const inputNumerator = document.getElementById('input-numerator');
+  const inputDenominator = document.getElementById('input-denominator');
   const inputNum = document.getElementById('input-num');
   const inputDen = document.getElementById('input-den');
   const inputK = document.getElementById('input-k');
@@ -34,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const presetDescEl = document.getElementById('preset-description');
   const inputTitle = document.getElementById('input-title');
   const btnCalculate = document.getElementById('btn-calculate');
+  const latexPreview = document.getElementById('latex-preview');
+  const previewStatus = document.getElementById('preview-status');
+  const previewError = document.getElementById('preview-error');
 
   const plotViewport = document.getElementById('plot-viewport');
   const plotImg = document.getElementById('plot-image');
@@ -86,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentMode = tab.dataset.mode;
       const targetPanel = document.getElementById(`form-${currentMode}`);
       if (targetPanel) targetPanel.classList.add('active');
+      schedulePreview();
     });
   });
 
@@ -158,6 +166,13 @@ document.addEventListener('DOMContentLoaded', () => {
         expr: inputExpr.value.trim(),
         title,
       };
+    } else if (currentMode === 'parts') {
+      return {
+        mode: 'parts',
+        numerator: inputNumerator.value.trim(),
+        denominator: inputDenominator.value.trim(),
+        title,
+      };
     } else if (currentMode === 'coeffs') {
       return {
         mode: 'coeffs',
@@ -168,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (currentMode === 'zpk') {
       return {
         mode: 'zpk',
-        k: parseFloat(inputK.value) || 1.0,
+        k: Number.isFinite(Number.parseFloat(inputK.value)) ? Number.parseFloat(inputK.value) : 1.0,
         zeros: inputZeros.value.trim(),
         poles: inputPoles.value.trim(),
         title,
@@ -214,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
       badgeCentroid.innerHTML = det.centroide !== null 
         ? `Centroide $\\sigma_a$: <b>${det.centroide.toFixed(2)}</b>` 
         : `Centroide: <b>N/A</b>`;
+      renderMathInContainer(badgeCentroid);
 
       // 4. Preencher o Memorial de Cálculo dos 7 Passos
       populateMemorialSteps(det);
@@ -227,19 +243,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderMath(element, texString) {
+  function renderMath(element, texString, displayMode = false) {
     if (!element || !texString) return;
     try {
       if (window.katex) {
         window.katex.render(texString, element, {
           throwOnError: false,
-          displayMode: false,
+          displayMode,
+          strict: 'warn',
+          trust: false,
         });
       } else {
         element.textContent = texString;
       }
     } catch (e) {
       element.textContent = texString;
+    }
+  }
+
+  const mathDelimiters = [
+    { left: '$$', right: '$$', display: true },
+    { left: '\\[', right: '\\]', display: true },
+    { left: '$', right: '$', display: false },
+    { left: '\\(', right: '\\)', display: false },
+  ];
+
+  function renderMathInContainer(container) {
+    if (!container || !window.renderMathInElement) return;
+    window.renderMathInElement(container, {
+      delimiters: mathDelimiters,
+      throwOnError: false,
+      strict: 'warn',
+      trust: false,
+      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+    });
+  }
+
+  function schedulePreview() {
+    window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(previewTransferFunction, 220);
+  }
+
+  async function previewTransferFunction() {
+    const requestId = ++previewRequestId;
+    previewStatus.textContent = 'Validando…';
+    previewStatus.className = 'preview-status loading';
+    previewError.hidden = true;
+
+    try {
+      const res = await window.api.previewTransferFunction(getPayload());
+      if (requestId !== previewRequestId) return;
+      if (!res.success) throw new Error(res.error || 'Entrada inválida.');
+
+      renderMath(latexPreview, res.latex_fac, true);
+      previewStatus.textContent = 'Expressão válida';
+      previewStatus.className = 'preview-status valid';
+    } catch (err) {
+      if (requestId !== previewRequestId) return;
+      latexPreview.textContent = 'G(s) = ?';
+      previewStatus.textContent = 'Revise a entrada';
+      previewStatus.className = 'preview-status invalid';
+      previewError.textContent = err.message;
+      previewError.hidden = false;
     }
   }
 
@@ -338,6 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
     }
+
+    [el1, el4, el5, el6, el7].forEach(renderMathInContainer);
   }
 
   // =========================================================================
@@ -388,6 +455,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('mouseup', () => {
     isPanning = false;
+  });
+
+  plotViewport.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse') return;
+    isPanning = true;
+    startX = event.clientX - panX;
+    startY = event.clientY - panY;
+    plotViewport.setPointerCapture(event.pointerId);
+  });
+
+  plotViewport.addEventListener('pointermove', (event) => {
+    if (!isPanning || event.pointerType === 'mouse') return;
+    panX = event.clientX - startX;
+    panY = event.clientY - startY;
+    updateImageTransform();
+  });
+
+  plotViewport.addEventListener('pointerup', (event) => {
+    isPanning = false;
+    if (plotViewport.hasPointerCapture(event.pointerId)) {
+      plotViewport.releasePointerCapture(event.pointerId);
+    }
   });
 
   // =========================================================================
@@ -466,8 +555,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnCalculate.addEventListener('click', calculate);
 
+  [
+    inputExpr,
+    inputNumerator,
+    inputDenominator,
+    inputNum,
+    inputDen,
+    inputK,
+    inputZeros,
+    inputPoles,
+  ].forEach((input) => input.addEventListener('input', schedulePreview));
+
+  renderMathInContainer(document.body);
+
   // Inicialização
   loadPresets().then(() => {
+    schedulePreview();
     calculate();
   });
 });

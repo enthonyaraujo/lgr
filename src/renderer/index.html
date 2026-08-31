@@ -2,8 +2,12 @@
 <html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; worker-src 'self';">
   <title>LGR Studio - Lugar Geométrico das Raízes</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="app-icon.svg" type="image/svg+xml">
   
   <!-- KaTeX Local CSS -->
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
@@ -35,6 +39,7 @@
         <!-- Seleção de Modo de Entrada -->
         <div class="input-mode-tabs">
           <button class="mode-tab active" data-mode="expr">✍️ Expressão</button>
+          <button class="mode-tab" data-mode="parts">➗ Fração</button>
           <button class="mode-tab" data-mode="coeffs">🔢 Coeficientes</button>
           <button class="mode-tab" data-mode="zpk">🎯 Polos/Zeros</button>
           <button class="mode-tab" data-mode="presets">📚 Presets</button>
@@ -54,11 +59,12 @@
                 id="input-expr" 
                 class="form-input code-font" 
                 value="(s + 2) / (s * (s + 1) * (s + 4))" 
-                placeholder="Ex: (s+2)/(s*(s+1)*(s+4))"
+                placeholder="Ex: G(s) = (s+2)/(s(s+1)(s+4))"
                 autocomplete="off"
                 spellcheck="false"
               />
             </div>
+            <p class="input-help">Aceita <code>G(s)=</code>, multiplicação implícita (<code>2s</code>, <code>s(s+1)</code>), <code>^</code> e expoentes Unicode como <code>s²</code>.</p>
             <div class="quick-examples">
               <span class="hint-title">Exemplos rápidos:</span>
               <div class="chip-group">
@@ -70,7 +76,33 @@
             </div>
           </div>
 
-          <!-- Modo 2: Coeficientes Polinomiais -->
+          <!-- Modo 2: Numerador e denominador escritos separadamente -->
+          <div id="form-parts" class="form-panel">
+            <label for="input-numerator" class="form-label">Numerador $N(s)$:</label>
+            <input
+              type="text"
+              id="input-numerator"
+              class="form-input code-font"
+              value="s + 2"
+              placeholder="Ex: s + 2"
+              autocomplete="off"
+              spellcheck="false"
+            />
+
+            <label for="input-denominator" class="form-label field-spaced">Denominador $D(s)$:</label>
+            <input
+              type="text"
+              id="input-denominator"
+              class="form-input code-font"
+              value="s(s + 1)(s + 4)"
+              placeholder="Ex: s(s + 1)(s + 4)"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <p class="input-help">A barra da fração é montada automaticamente. Escreva apenas os dois polinômios.</p>
+          </div>
+
+          <!-- Modo 3: Coeficientes Polinomiais -->
           <div id="form-coeffs" class="form-panel">
             <label class="form-label">Numerador $N(s)$ [ordem decrescente]:</label>
             <input 
@@ -91,7 +123,7 @@
             />
           </div>
 
-          <!-- Modo 3: ZPK (Zeros, Polos e Ganho) -->
+          <!-- Modo 4: ZPK (Zeros, Polos e Ganho) -->
           <div id="form-zpk" class="form-panel">
             <label class="form-label">Ganho Escalar $K$:</label>
             <input type="number" id="input-k" class="form-input" value="1.0" step="0.5" />
@@ -115,11 +147,20 @@
             />
           </div>
 
-          <!-- Modo 4: Presets Didáticos -->
+          <!-- Modo 5: Presets Didáticos -->
           <div id="form-presets" class="form-panel">
             <label class="form-label">Biblioteca de Casos de Estudo:</label>
             <select id="select-preset" class="form-select"></select>
             <div id="preset-description" class="preset-card"></div>
+          </div>
+
+          <div class="function-preview" id="function-preview" aria-live="polite">
+            <div class="preview-heading">
+              <span>Prévia matemática</span>
+              <span id="preview-status" class="preview-status">Validando…</span>
+            </div>
+            <div id="latex-preview" class="preview-math">G(s)</div>
+            <div id="preview-error" class="preview-error" hidden></div>
           </div>
 
           <!-- Título Customizado -->
@@ -348,6 +389,8 @@
 
   <!-- KaTeX Local Scripts -->
   <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/katex/contrib/auto-render.min.js"></script>
+  <script src="web-api.js"></script>
   <!-- App Script -->
   <script src="app.js"></script>
 </body>

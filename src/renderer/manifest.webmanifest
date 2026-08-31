@@ -1,0 +1,19 @@
+{
+  "name": "LGR Studio — Lugar Geométrico das Raízes",
+  "short_name": "LGR Studio",
+  "description": "Análise didática dos sete passos clássicos do Lugar Geométrico das Raízes.",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

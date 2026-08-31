@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   calculateLGR: (payload) => ipcRenderer.invoke('calculate-lgr', payload),
+  previewTransferFunction: (payload) => ipcRenderer.invoke('preview-transfer-function', payload),
   getPresets: () => ipcRenderer.invoke('get-presets'),
   saveImage: (payload) => ipcRenderer.invoke('save-image', payload),
   saveSVG: (payload) => ipcRenderer.invoke('save-svg', payload),

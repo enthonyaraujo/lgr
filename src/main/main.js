@@ -3,18 +3,20 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-// Desabilita sandbox do Chromium para evitar erros de permissão SUID no Linux
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-
 let mainWindow = null;
 
 function getPythonPath() {
-  const venvPython = path.join(__dirname, '..', '..', '.venv', 'bin', 'python');
-  if (fs.existsSync(venvPython)) {
-    return venvPython;
+  if (process.env.LGR_PYTHON) {
+    return process.env.LGR_PYTHON;
   }
-  return 'python3';
+
+  const projectRoot = path.join(__dirname, '..', '..');
+  const candidates = process.platform === 'win32'
+    ? [path.join(projectRoot, '.venv', 'Scripts', 'python.exe')]
+    : [path.join(projectRoot, '.venv', 'bin', 'python')];
+
+  return candidates.find((candidate) => fs.existsSync(candidate))
+    || (process.platform === 'win32' ? 'python' : 'python3');
 }
 
 function runPythonBridge(payload) {
@@ -60,15 +62,15 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 880,
-    minWidth: 1050,
-    minHeight: 680,
+    minWidth: 360,
+    minHeight: 640,
     title: 'LGR Studio - Lugar Geométrico das Raízes',
     backgroundColor: '#0f172a',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -86,6 +88,14 @@ ipcMain.handle('calculate-lgr', async (event, payload) => {
   try {
     const data = await runPythonBridge({ action: 'calculate', ...payload });
     return data;
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('preview-transfer-function', async (event, payload) => {
+  try {
+    return await runPythonBridge({ action: 'preview', ...payload });
   } catch (err) {
     return { success: false, error: err.message };
   }
