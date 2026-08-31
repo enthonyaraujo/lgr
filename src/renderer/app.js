@@ -518,6 +518,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await window.api.copyImageToClipboard(currentImageData);
       if (res.success) {
         showToast('📋 Gráfico copiado para a Área de Transferência!');
+      } else if (res.error) {
+        showToast(`Não foi possível copiar: ${res.error}`, 4000);
       }
     } catch (err) {
       showToast(`Erro ao copiar: ${err.message}`, 3500);
