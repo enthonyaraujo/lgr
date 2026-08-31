@@ -62,7 +62,9 @@ No Linux/macOS também é possível usar:
 ./run.sh
 ```
 
-O Electron mantém `contextIsolation` e o sandbox do renderer habilitados. Se uma distribuição Linux específica exigir desativar o sandbox, trate isso como configuração local explícita; o projeto não desabilita essa proteção por padrão.
+O Electron mantém `contextIsolation` e o sandbox do renderer habilitados. No Linux, o inicializador verifica o helper SUID do Chromium. Quando ele não estiver configurado como `root:4755`, aplica automaticamente `--no-sandbox` para permitir o uso sem `sudo` e mostra um aviso no terminal.
+
+Opções adicionais precisam ser repassadas após `--`, por exemplo: `npm start -- --no-sandbox`.
 
 ## Executar no navegador
 

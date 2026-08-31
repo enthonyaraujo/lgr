@@ -4,15 +4,15 @@
   "description": "LGR Studio - Interface responsiva em Electron e navegador para os 7 passos clássicos do Lugar Geométrico das Raízes",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron .",
-    "web": "python web_server.py",
-    "web:mobile": "python web_server.py --host 0.0.0.0",
-    "web:streamlit": "streamlit run app.py",
-    "gui": "python gui.py",
+    "start": "node scripts/start-electron.js",
+    "dev": "node scripts/start-electron.js",
+    "web": "node scripts/run-python.js web_server.py",
+    "web:mobile": "node scripts/run-python.js web_server.py --host 0.0.0.0",
+    "web:streamlit": "node scripts/run-python.js -m streamlit run app.py",
+    "gui": "node scripts/run-python.js gui.py",
     "test": "npm run test:js && npm run test:python",
-    "test:js": "node --check src/main/main.js && node --check src/preload/preload.js && node --check src/renderer/app.js && node --check src/renderer/web-api.js && node --check src/renderer/sw.js",
-    "test:python": "python -m unittest discover -s tests"
+    "test:js": "node --check scripts/start-electron.js && node --check scripts/run-python.js && node --check src/main/main.js && node --check src/preload/preload.js && node --check src/renderer/app.js && node --check src/renderer/web-api.js && node --check src/renderer/sw.js",
+    "test:python": "node scripts/run-python.js -m unittest discover -s tests"
   },
   "keywords": [
     "root-locus",
