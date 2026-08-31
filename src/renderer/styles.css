@@ -631,11 +631,15 @@ button {
   align-items: center;
   justify-content: center;
   background-color: #ffffff;
-  cursor: grab;
+  cursor: default;
   touch-action: none;
 }
 
-.plot-viewport:active {
+.plot-viewport.zoomed {
+  cursor: grab;
+}
+
+.plot-viewport.zoomed:active {
   cursor: grabbing;
 }
 

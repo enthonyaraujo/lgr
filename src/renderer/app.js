@@ -408,10 +408,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // ZOOM E PAN INTERATIVO NA IMAGEM
+  // ZOOM E PAN INTERATIVO NA IMAGEM (SOMENTE AMPLIAR, MÍNIMO 1.0)
   // =========================================================================
   function updateImageTransform() {
+    if (zoomLevel <= 1.0) {
+      zoomLevel = 1.0;
+      panX = 0;
+      panY = 0;
+    }
     plotImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+
+    const isZoomed = zoomLevel > 1.0;
+    plotViewport.classList.toggle('zoomed', isZoomed);
+
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    if (btnZoomOut) {
+      btnZoomOut.disabled = !isZoomed;
+      btnZoomOut.style.opacity = isZoomed ? '1' : '0.45';
+      btnZoomOut.style.cursor = isZoomed ? 'pointer' : 'not-allowed';
+    }
   }
 
   function resetZoom() {
@@ -427,7 +442,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-zoom-out').addEventListener('click', () => {
-    zoomLevel = Math.max(zoomLevel / 1.25, 0.5);
+    zoomLevel = Math.max(zoomLevel / 1.25, 1.0);
+    if (zoomLevel === 1.0) {
+      panX = 0;
+      panY = 0;
+    }
     updateImageTransform();
   });
 
@@ -436,18 +455,23 @@ document.addEventListener('DOMContentLoaded', () => {
   plotViewport.addEventListener('wheel', (e) => {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    zoomLevel = Math.min(Math.max(zoomLevel * factor, 0.4), 6.0);
+    zoomLevel = Math.min(Math.max(zoomLevel * factor, 1.0), 6.0);
+    if (zoomLevel === 1.0) {
+      panX = 0;
+      panY = 0;
+    }
     updateImageTransform();
   });
 
   plotViewport.addEventListener('mousedown', (e) => {
+    if (zoomLevel <= 1.0) return;
     isPanning = true;
     startX = e.clientX - panX;
     startY = e.clientY - panY;
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (!isPanning) return;
+    if (!isPanning || zoomLevel <= 1.0) return;
     panX = e.clientX - startX;
     panY = e.clientY - startY;
     updateImageTransform();
@@ -458,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   plotViewport.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'mouse') return;
+    if (event.pointerType === 'mouse' || zoomLevel <= 1.0) return;
     isPanning = true;
     startX = event.clientX - panX;
     startY = event.clientY - panY;
@@ -466,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   plotViewport.addEventListener('pointermove', (event) => {
-    if (!isPanning || event.pointerType === 'mouse') return;
+    if (!isPanning || event.pointerType === 'mouse' || zoomLevel <= 1.0) return;
     panX = event.clientX - startX;
     panY = event.clientY - startY;
     updateImageTransform();
