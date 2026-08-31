@@ -1,14 +1,18 @@
 {
   "name": "lgr-studio",
   "version": "1.0.0",
-  "description": "LGR Studio - Interface moderna e interativa em Electron para o Lugar Geométrico das Raízes (7 passos clássicos)",
+  "description": "LGR Studio - Interface responsiva em Electron e navegador para os 7 passos clássicos do Lugar Geométrico das Raízes",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron . --no-sandbox",
-    "dev": "electron . --no-sandbox",
-    "web": "streamlit run app.py",
-    "gui": "python3 gui.py",
-    "test": "node --check src/main/main.js && node --check src/preload/preload.js"
+    "start": "electron .",
+    "dev": "electron .",
+    "web": "python web_server.py",
+    "web:mobile": "python web_server.py --host 0.0.0.0",
+    "web:streamlit": "streamlit run app.py",
+    "gui": "python gui.py",
+    "test": "npm run test:js && npm run test:python",
+    "test:js": "node --check src/main/main.js && node --check src/preload/preload.js && node --check src/renderer/app.js && node --check src/renderer/web-api.js && node --check src/renderer/sw.js",
+    "test:python": "python -m unittest discover -s tests"
   },
   "keywords": [
     "root-locus",

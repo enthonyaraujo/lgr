@@ -9,16 +9,23 @@ if [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# Se receber flag --web, inicia o Streamlit
-if [ "$1" == "--web" ]; then
-    streamlit run app.py
-# Se receber flag --gui, inicia a GUI Tkinter clássica
-elif [ "$1" == "--gui" ]; then
-    python3 gui.py
-# Se receber flag --cli, inicia o menu de opções
-elif [ "$1" == "--cli" ]; then
-    python3 main.py
-# Padrão: Inicia a Interface Moderna do Electron com --no-sandbox
-else
-    npx electron . --no-sandbox
-fi
+case "${1:-}" in
+    --web)
+        python web_server.py
+        ;;
+    --mobile)
+        python web_server.py --host 0.0.0.0
+        ;;
+    --streamlit)
+        streamlit run app.py
+        ;;
+    --gui)
+        python gui.py
+        ;;
+    --cli)
+        python main.py
+        ;;
+    *)
+        npm start
+        ;;
+esac

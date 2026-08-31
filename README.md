@@ -1,101 +1,131 @@
-# 📈 LGR Studio — Interface Desktop Moderna em Electron & Python
+# LGR Studio — Lugar Geométrico das Raízes
 
-Interface desktop interativa e moderna construída com **Electron**, **HTML5/CSS3/JavaScript**, **KaTeX** e motor de cálculo científico em **Python** (`control`, `numpy`, `matplotlib`, `sympy`).
+Aplicação responsiva para calcular, visualizar e explicar os **sete passos clássicos do LGR**. A mesma interface funciona no Electron, no navegador do desktop e em celulares ou tablets conectados ao servidor local.
 
-O aplicativo executa rigorosamente os **7 passos clássicos** da análise do Lugar Geométrico das Raízes (LGR) de sistemas de controle em malha fechada sem alterar qualquer etapa de cálculo ou plotagem do algoritmo original.
+O cálculo científico continua centralizado em Python (`control`, NumPy, SciPy, Matplotlib e SymPy). As interfaces apenas validam entradas, apresentam o LaTeX e exibem os resultados; não redefinem as regras do LGR.
 
----
+## Recursos
 
-## ✨ Destaques da Nova Interface (Electron)
+- Renderização matemática offline com KaTeX, incluindo fórmulas estáticas e o memorial gerado dinamicamente.
+- Prévia LaTeX durante a digitação, antes de executar o traçado.
+- Entradas por:
+  - expressão completa: `G(s) = (s + 2)/(s(s + 1)(s + 4))`;
+  - numerador e denominador separados;
+  - coeficientes polinomiais;
+  - polos, zeros e ganho;
+  - presets didáticos.
+- Escrita flexível com multiplicação implícita (`2s`, `s(s+1)`), `^`, expoentes Unicode (`s²`, `s³`) e símbolos `×`, `·` e `÷`.
+- Gráfico com zoom, pan por mouse ou toque e exportação PNG/SVG.
+- Tema claro/escuro e layout adaptado para desktop, tablet e celular.
+- Aplicação web instalável no dispositivo como PWA; o shell visual é armazenado localmente, enquanto os cálculos continuam dependendo do servidor Python.
 
-- **🎨 Design Moderno & Premium:**
-  - Interface escura por padrão (com alternador de Tema Claro/Escuro).
-  - Banner de equações com renderização instantânea em **LaTeX via KaTeX** ($G(s) = \frac{N(s)}{D(s)}$ expandida e fatorada).
-  - Painel de controle responsivo com chips de exemplos rápidos.
-  - Badges de contadores em tempo real (Polos, Zeros, Ramos, Centroide).
+## Requisitos
 
-- **🔍 Visualizador do Gráfico do LGR:**
-  - Zoom interativo (com roda do mouse ou botões de zoom in/out).
-  - Arraste livre da imagem (pan).
-  - Exportação direta em **PNG em Alta Resolução (300 DPI)** e **Vetorial SVG**.
-  - Botão de **Copiar Gráfico para a Área de Transferência**.
+- Node.js 22.12 ou mais recente;
+- Python 3.12 ou mais recente;
+- Windows, macOS ou Linux.
 
-- **📑 Memorial de Cálculo dos 7 Passos Clássicos:**
-  1. **Passos 1, 2 e 3:** Polos ($p_i$), Zeros ($z_i$), Total de Ramos ($n = \max(P, Z)$) e Simetria.
-  2. **Passo 4:** Centroide ($\sigma_a$) e Ângulos das Assíntotas ($\theta_k$).
-  3. **Passo 5:** Pontos de Partida e Retorno no eixo real (Break-in / Breakaway) via $\frac{dK}{ds} = 0$ e Ganho $K_{break}$.
-  4. **Passo 6:** Cruzamento com o Eixo $j\omega$ e Ganho Crítico de Estabilidade $K_{crit}$.
-  5. **Passo 7:** Ângulos de Partida ($\theta_d$) de polos complexos e Chegada ($\theta_a$) em zeros complexos.
+As dependências declaradas usam projetos ativos e foram auditadas em 31/08/2026. Consulte [requirements.txt](requirements.txt) e [package.json](package.json) para as faixas efetivas.
 
-- **🎯 Modos de Entrada Flexíveis:**
-  - **✍️ Expressão Algébrica / Simbólica:** Notação livre como `(s + 2) / (s * (s + 1) * (s + 4))` ou `1 / (s*(s^2 + 2s + 2))`.
-  - **🔢 Coeficientes Polinomiais:** Coeficientes diretos (ex: `1, 2` e `1, 5, 4, 0`).
-  - **🎯 Polos, Zeros e Ganho:** Zeros, polos (reais e complexos) e ganho escalar $K$.
-  - **📚 Presets Clássicos:** Exemplos de livros consagrados (Ogata, Nise, Dorf) carregados com 1 clique.
+## Instalação
 
----
-
-## 🚀 Como Executar
-
-### 1. Pré-requisitos e Instalação
-
-Certifique-se de ter **Node.js** (v18+) e **Python** (v3.10+) instalados.
+Linux/macOS:
 
 ```bash
-# 1. Instalar dependências Node (Electron & KaTeX)
 npm install
-
-# 2. Criar ambiente virtual e instalar dependências Python
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m ensurepip --upgrade
+python -m pip install -r requirements.txt
 ```
 
----
+Windows PowerShell:
 
-### 2. Iniciar o Aplicativo
+```powershell
+npm install
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-#### 🌟 Interface Desktop Electron (Recomendada):
+## Executar no desktop
+
+Com o ambiente virtual ativado:
+
 ```bash
 npm start
 ```
-*ou:*
+
+No Linux/macOS também é possível usar:
+
 ```bash
 ./run.sh
 ```
 
-#### 🌐 Interface Web Alternativa (Streamlit):
+O Electron mantém `contextIsolation` e o sandbox do renderer habilitados. Se uma distribuição Linux específica exigir desativar o sandbox, trate isso como configuração local explícita; o projeto não desabilita essa proteção por padrão.
+
+## Executar no navegador
+
+Somente neste computador:
+
 ```bash
-./run.sh --web
+npm run web
 ```
 
-#### 🖥️ Interface Tkinter Clássica:
+Acesse [http://127.0.0.1:8501](http://127.0.0.1:8501).
+
+### Acessar pelo celular ou tablet
+
+Com o computador e o dispositivo móvel na mesma rede:
+
 ```bash
-./run.sh --gui
+npm run web:mobile
 ```
 
----
+Descubra o IP local do computador e abra `http://IP-DO-COMPUTADOR:8501` no dispositivo. Não exponha esse servidor diretamente à internet; para acesso externo, coloque-o atrás de HTTPS e de um servidor de produção.
 
-## 📁 Estrutura do Projeto
+No Linux/macOS, os equivalentes são `./run.sh --web` e `./run.sh --mobile`.
 
+Interfaces legadas continuam disponíveis:
+
+```bash
+npm run web:streamlit
+npm run gui
 ```
+
+## Validação e segurança
+
+```bash
+npm test
+npm audit
+uvx pip-audit -r requirements.txt
+```
+
+`npm test` executa verificações sintáticas JavaScript e os testes Python. Esses comandos não geram builds.
+
+## Estrutura principal
+
+```text
 lgr/
 ├── src/
-│   ├── main/
-│   │   └── main.js           # Processo Principal do Electron (IPC & spawn Python)
-│   ├── preload/
-│   │   └── preload.js        # ContextBridge seguro para IPC
+│   ├── main/main.js              # Electron e IPC
+│   ├── preload/preload.js        # API isolada do renderer
 │   └── renderer/
-│       ├── index.html        # Estrutura visual da aplicação
-│       ├── styles.css        # Design System moderno, Dark/Light mode
-│       ├── app.js            # Lógica reativa, KaTeX, Zoom/Pan, Exportação
-│       └── vendor/
-│           └── katex/        # KaTeX local offline para fórmulas matemáticas
-├── lgr_engine.py             # Motor dos 7 passos clássicos do LGR e Sympy
-├── python_bridge.py          # Bridge de comunicação JSON stdio Electron-Python
-├── app.py                    # Interface Web Streamlit
-├── gui.py                    # Interface Tkinter Desktop
-├── package.json              # Dependências e scripts Electron
-├── requirements.txt          # Dependências Python (control, numpy, matplotlib, sympy)
-└── run.sh                    # Launcher executável unificado
+│       ├── index.html            # Interface compartilhada
+│       ├── app.js                # Interação, KaTeX, zoom e memorial
+│       ├── web-api.js            # Adaptador HTTP para navegadores
+│       ├── styles.css            # Design responsivo
+│       ├── manifest.webmanifest  # Instalação como PWA
+│       ├── sw.js                 # Cache do shell visual
+│       └── vendor/katex/         # KaTeX local
+├── lgr_engine.py                 # Motor e sete passos clássicos
+├── python_bridge.py              # Entrada unificada e serialização
+├── web_server.py                 # Servidor HTTP local sem framework adicional
+├── app.py                        # Interface alternativa Streamlit
+├── gui.py                        # Interface alternativa Tkinter
+└── tests/                        # Regressões de entrada e do caso clássico
 ```
+
+## Regra de integridade
+
+As fórmulas e a sequência de `lgr_completo()` representam a implementação de referência dos sete passos clássicos. Melhorias de interface, portabilidade ou entrada não devem alterar esse procedimento.

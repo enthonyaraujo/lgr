@@ -15,24 +15,22 @@
 
 ## 2. Arquitetura e Stack Tecnológica
 
-A aplicação adota uma arquitetura desacoplada **Electron (Frontend) + Python Bridge (Cálculo Científico)**:
+A aplicação adota uma interface HTML compartilhada por **Electron e navegador**, conectada ao mesmo motor científico Python:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 ELECTRON FRONTEND (Renderer)                │
+│             FRONTEND RESPONSIVO COMPARTILHADO               │
 │  - HTML5, CSS3 moderno (Dark/Light mode)                   │
 │  - KaTeX local para renderização de LaTeX                   │
 │  - Visualizador de imagem interativo (Zoom, Pan, Export)    │
 │  - Cards do Memorial de Cálculo dos 7 Passos                │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ IPC (contextBridge)
-┌──────────────────────────────▼──────────────────────────────┐
-│                  ELECTRON MAIN PROCESS                      │
-│  - src/main/main.js & src/preload/preload.js                │
-│  - Flags de segurança Linux: --no-sandbox                   │
-│  - Spawna python_bridge.py via stdio                        │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ JSON via stdin / stdout
+└───────────────┬──────────────────────────────┬──────────────┘
+                │ IPC seguro                   │ HTTP local
+┌───────────────▼──────────────┐ ┌─────────────▼──────────────┐
+│ Electron main + preload      │ │ web_server.py              │
+│ sandbox + contextIsolation   │ │ navegador/PWA/mobile       │
+└───────────────┬──────────────┘ └─────────────┬──────────────┘
+                └──────────── JSON ────────────┘
 ┌──────────────────────────────▼──────────────────────────────┐
 │                    PYTHON SCIENTIFIC ENGINE                 │
 │  - python_bridge.py: parse JSON, gera Base64/SVG e métricas │
@@ -42,6 +40,7 @@ A aplicação adota uma arquitetura desacoplada **Electron (Frontend) + Python B
 ```
 
 ### Frontends Alternativos inclusos:
+- **`web_server.py`:** Interface principal no navegador e dispositivos móveis, reutilizando o renderer do Electron.
 - **`app.py`:** Web UI moderna via Streamlit com download de PNG 300 DPI e KaTeX.
 - **`gui.py`:** Desktop GUI clássica em Tkinter com canvas interativo do Matplotlib.
 
@@ -89,9 +88,12 @@ O núcleo do algoritmo (`lgr_engine.py`) segue rigorosamente a convenção clás
 │       ├── index.html       # Layout HTML semântico com Sidebar, Banner KaTeX e Abas
 │       ├── styles.css       # Design System completo (Dark/Light mode, Glassmorphism, Zoom UI)
 │       ├── app.js           # Lógica do renderer (interação KaTeX, Pan/Zoom, Memorial, Exportação)
+│       ├── web-api.js       # Adaptador da API HTTP para execução no navegador
+│       ├── manifest.webmanifest e sw.js # Instalação PWA e cache do shell visual
 │       └── vendor/katex/    # KaTeX offline completo (fontes, scripts e CSS)
 ├── lgr_engine.py            # Motor matemático com os 7 passos clássicos e parser de Sympy
 ├── python_bridge.py         # Ponte de comunicação IPC JSON stdio entre Electron e Python
+├── web_server.py            # Servidor HTTP local para desktop, tablet e celular
 ├── app.py                   # Interface alternativa Streamlit
 ├── gui.py                   # Interface alternativa Desktop Tkinter
 ├── main.py                  # Launcher unificado em Python
@@ -109,7 +111,7 @@ O núcleo do algoritmo (`lgr_engine.py`) segue rigorosamente a convenção clás
 ```json
 {
   "action": "calculate",
-  "mode": "expr",              // "expr" | "coeffs" | "zpk" | "preset"
+  "mode": "expr",              // "expr" | "parts" | "coeffs" | "zpk" | "preset"
   "expr": "(s + 2) / (s * (s + 1) * (s + 4))",
   "num": "1, 2",               // Usado se mode="coeffs"
   "den": "1, 5, 4, 0",          // Usado se mode="coeffs"
@@ -120,6 +122,8 @@ O núcleo do algoritmo (`lgr_engine.py`) segue rigorosamente a convenção clás
   "title": "Lugar Geométrico das Raízes"
 }
 ```
+
+`action: "preview"` usa o mesmo schema, mas devolve apenas os coeficientes e o LaTeX, sem executar o traçado. No modo `parts`, os campos são `numerator` e `denominator`.
 
 ### Resposta Python -> Electron (`stdout`):
 ```json
@@ -153,12 +157,18 @@ O núcleo do algoritmo (`lgr_engine.py`) segue rigorosamente a convenção clás
 npm install
 source .venv/bin/activate && pip install -r requirements.txt
 
-# Execução Principal (Electron Desktop com --no-sandbox)
+# Execução Principal (Electron Desktop com sandbox)
 npm start
 # ou: ./run.sh
 
-# Execução Alternativa Web (Streamlit)
-./run.sh --web
+# Interface responsiva no navegador local
+npm run web
+
+# Acesso por celular/tablet na mesma rede
+npm run web:mobile
+
+# Interface alternativa Streamlit
+npm run web:streamlit
 
 # Execução Alternativa Tkinter
 ./run.sh --gui
@@ -169,7 +179,7 @@ npm start
 ## 7. Diretrizes para Futuras Modificações / Extensões
 
 1. **Integridade Algorítmica:** Nunca altere as fórmulas nem simplifique os 7 passos da função `lgr_completo` em `lgr_engine.py`.
-2. **Ambiente Linux / Electron:** Mantenha a flag `--no-sandbox` para evitar conflitos de permissões do Chromium SUID sandbox em distribuições Linux.
+2. **Segurança Electron:** Mantenha `contextIsolation`, `nodeIntegration: false`, sandbox e a política CSP. Exceções locais de sandbox não devem virar o padrão do projeto.
 3. **Independência Offline:** O KaTeX e as bibliotecas de plotagem estão 100% locais; novas dependências devem ser empacotadas sem exigir CDNs online.
 4. **Novas Features em Potencial:**
    - Adição de cálculo de resposta no tempo (degrau / impulso para um ganho $K$ escolhido).
